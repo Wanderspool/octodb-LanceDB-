@@ -15,10 +15,23 @@
 use std::ops::{Add, AddAssign, Mul, Sub, SubAssign};
 
 pub mod dist_table;
-pub mod f32;
-pub mod f64;
-pub mod i32;
 pub mod u8;
+pub mod fallback;
+
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64", target_arch = "loongarch64"))]
+pub mod f32;
+#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64", target_arch = "loongarch64")))]
+pub use fallback as f32;
+
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64", target_arch = "loongarch64"))]
+pub mod f64;
+#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64", target_arch = "loongarch64")))]
+pub use fallback as f64;
+
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64", target_arch = "loongarch64"))]
+pub mod i32;
+#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64", target_arch = "loongarch64")))]
+pub use fallback as i32;
 
 use num_traits::{Float, Num};
 use u8::u8x16;
