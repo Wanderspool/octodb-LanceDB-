@@ -35,11 +35,27 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libssl-dev
 
-      - name: Build Linux x86_64 (AVX2 enabled via config)
+      - name: Build Linux x86_64 (Standard)
         run: |
           cargo build --manifest-path cgo/Cargo.toml --release
 
-      - name: Build Linux ARM64
+      - name: Prepare Standard Linux x86_64 assets
+        run: |
+          mkdir -p release-dist/linux-amd64-standard
+          cp target/release/liblancedb_go.so release-dist/linux-amd64-standard/
+          cp target/release/liblancedb_go.a release-dist/linux-amd64-standard/
+
+      - name: Build Linux x86_64 (Cloud)
+        run: |
+          cargo build --manifest-path cgo/Cargo.toml --release --features cloud
+
+      - name: Prepare Cloud Linux x86_64 assets
+        run: |
+          mkdir -p release-dist/linux-amd64-cloud
+          cp target/release/liblancedb_go.so release-dist/linux-amd64-cloud/liblancedb_go_cloud.so
+          cp target/release/liblancedb_go.a release-dist/linux-amd64-cloud/liblancedb_go_cloud.a
+
+      - name: Build Linux ARM64 (Standard)
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
           CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
@@ -48,23 +64,42 @@ jobs:
         run: |
           cargo build --manifest-path cgo/Cargo.toml --target aarch64-unknown-linux-gnu --release
 
+      - name: Prepare Standard Linux ARM64 assets
+        run: |
+          mkdir -p release-dist/linux-arm64-standard
+          cp target/aarch64-unknown-linux-gnu/release/liblancedb_go.so release-dist/linux-arm64-standard/
+          cp target/aarch64-unknown-linux-gnu/release/liblancedb_go.a release-dist/linux-arm64-standard/
+
+      - name: Build Linux ARM64 (Cloud)
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+          CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
+          CXX_aarch64_unknown_linux_gnu: aarch64-linux-gnu-g++
+          PKG_CONFIG_ALLOW_CROSS: "1"
+        run: |
+          cargo build --manifest-path cgo/Cargo.toml --target aarch64-unknown-linux-gnu --release --features cloud
+
+      - name: Prepare Cloud Linux ARM64 assets
+        run: |
+          mkdir -p release-dist/linux-arm64-cloud
+          cp target/aarch64-unknown-linux-gnu/release/liblancedb_go.so release-dist/linux-arm64-cloud/liblancedb_go_cloud.so
+          cp target/aarch64-unknown-linux-gnu/release/liblancedb_go.a release-dist/linux-arm64-cloud/liblancedb_go_cloud.a
+
       - name: Package Linux assets
         run: |
-          mkdir -p release-dist/linux-amd64 release-dist/linux-arm64 release-dist/include
-          
-          # Copy binaries
-          cp target/release/liblancedb_go.so release-dist/linux-amd64/
-          cp target/release/liblancedb_go.a release-dist/linux-amd64/
-          cp target/aarch64-unknown-linux-gnu/release/liblancedb_go.so release-dist/linux-arm64/
-          cp target/aarch64-unknown-linux-gnu/release/liblancedb_go.a release-dist/linux-arm64/
+          mkdir -p release-dist/include
           
           # Find and copy generated header
           find target -name "lancedb.h" -exec cp {} release-dist/include/ \; -quit
-          
-          # Package into archives
-          tar -czf lancedb-go-linux-amd64.tar.gz -C release-dist/linux-amd64 liblancedb_go.so liblancedb_go.a
-          tar -czf lancedb-go-linux-arm64.tar.gz -C release-dist/linux-arm64 liblancedb_go.so liblancedb_go.a
           cp release-dist/include/lancedb.h ./lancedb.h
+          
+          # Package standard archives
+          tar -czf lancedb-go-linux-amd64.tar.gz -C release-dist/linux-amd64-standard liblancedb_go.so liblancedb_go.a
+          tar -czf lancedb-go-linux-arm64.tar.gz -C release-dist/linux-arm64-standard liblancedb_go.so liblancedb_go.a
+          
+          # Package cloud archives
+          tar -czf lancedb-go-cloud-linux-amd64.tar.gz -C release-dist/linux-amd64-cloud liblancedb_go_cloud.so liblancedb_go_cloud.a
+          tar -czf lancedb-go-cloud-linux-arm64.tar.gz -C release-dist/linux-arm64-cloud liblancedb_go_cloud.so liblancedb_go_cloud.a
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
@@ -73,6 +108,8 @@ jobs:
           path: |
             lancedb-go-linux-amd64.tar.gz
             lancedb-go-linux-arm64.tar.gz
+            lancedb-go-cloud-linux-amd64.tar.gz
+            lancedb-go-cloud-linux-arm64.tar.gz
             lancedb.h
 
   build-mac:
@@ -95,38 +132,67 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build macOS x86_64
+      - name: Build macOS x86_64 (Standard)
         run: |
           cargo build --manifest-path cgo/Cargo.toml --target x86_64-apple-darwin --release
 
-      - name: Build macOS ARM64
+      - name: Build macOS ARM64 (Standard)
         run: |
           cargo build --manifest-path cgo/Cargo.toml --target aarch64-apple-darwin --release
 
-      - name: Create Universal macOS binaries
+      - name: Create Universal macOS binaries (Standard)
         run: |
-          mkdir -p release-dist/mac-universal
+          mkdir -p release-dist/mac-universal-standard
           
           # Universal Dynamic Library (.dylib)
           lipo -create \
-            -output release-dist/mac-universal/liblancedb_go.dylib \
+            -output release-dist/mac-universal-standard/liblancedb_go.dylib \
             target/x86_64-apple-darwin/release/liblancedb_go.dylib \
             target/aarch64-apple-darwin/release/liblancedb_go.dylib
             
           # Universal Static Library (.a)
           lipo -create \
-            -output release-dist/mac-universal/liblancedb_go.a \
+            -output release-dist/mac-universal-standard/liblancedb_go.a \
             target/x86_64-apple-darwin/release/liblancedb_go.a \
             target/aarch64-apple-darwin/release/liblancedb_go.a
 
           # Package universal binaries
-          tar -czf lancedb-go-darwin-universal.tar.gz -C release-dist/mac-universal liblancedb_go.dylib liblancedb_go.a
+          tar -czf lancedb-go-darwin-universal.tar.gz -C release-dist/mac-universal-standard liblancedb_go.dylib liblancedb_go.a
+
+      - name: Build macOS x86_64 (Cloud)
+        run: |
+          cargo build --manifest-path cgo/Cargo.toml --target x86_64-apple-darwin --release --features cloud
+
+      - name: Build macOS ARM64 (Cloud)
+        run: |
+          cargo build --manifest-path cgo/Cargo.toml --target aarch64-apple-darwin --release --features cloud
+
+      - name: Create Universal macOS binaries (Cloud)
+        run: |
+          mkdir -p release-dist/mac-universal-cloud
+          
+          # Universal Dynamic Library (.dylib)
+          lipo -create \
+            -output release-dist/mac-universal-cloud/liblancedb_go_cloud.dylib \
+            target/x86_64-apple-darwin/release/liblancedb_go.dylib \
+            target/aarch64-apple-darwin/release/liblancedb_go.dylib
+            
+          # Universal Static Library (.a)
+          lipo -create \
+            -output release-dist/mac-universal-cloud/liblancedb_go_cloud.a \
+            target/x86_64-apple-darwin/release/liblancedb_go.a \
+            target/aarch64-apple-darwin/release/liblancedb_go.a
+
+          # Package universal binaries
+          tar -czf lancedb-go-cloud-darwin-universal.tar.gz -C release-dist/mac-universal-cloud liblancedb_go_cloud.dylib liblancedb_go_cloud.a
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
           name: mac-artifacts
-          path: lancedb-go-darwin-universal.tar.gz
+          path: |
+            lancedb-go-darwin-universal.tar.gz
+            lancedb-go-cloud-darwin-universal.tar.gz
 
   build-windows:
     name: Build Windows
@@ -148,28 +214,49 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Windows x86_64
+      - name: Build Windows x86_64 (Standard)
         run: |
           cargo build --manifest-path cgo/Cargo.toml --target x86_64-pc-windows-msvc --release
 
-      - name: Build Windows ARM64
+      - name: Build Windows ARM64 (Standard)
         run: |
           cargo build --manifest-path cgo/Cargo.toml --target aarch64-pc-windows-msvc --release
+
+      - name: Build Windows x86_64 (Cloud)
+        run: |
+          cargo build --manifest-path cgo/Cargo.toml --target x86_64-pc-windows-msvc --release --features cloud
+
+      - name: Build Windows ARM64 (Cloud)
+        run: |
+          cargo build --manifest-path cgo/Cargo.toml --target aarch64-pc-windows-msvc --release --features cloud
 
       - name: Package Windows assets
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path release-dist/windows-amd64
           New-Item -ItemType Directory -Force -Path release-dist/windows-arm64
+          New-Item -ItemType Directory -Force -Path release-dist/windows-amd64-cloud
+          New-Item -ItemType Directory -Force -Path release-dist/windows-arm64-cloud
           
+          # Standard
           Copy-Item target/x86_64-pc-windows-msvc/release/lancedb_go.dll release-dist/windows-amd64/
           Copy-Item target/x86_64-pc-windows-msvc/release/lancedb_go.lib release-dist/windows-amd64/
-          
           Copy-Item target/aarch64-pc-windows-msvc/release/lancedb_go.dll release-dist/windows-arm64/
           Copy-Item target/aarch64-pc-windows-msvc/release/lancedb_go.lib release-dist/windows-arm64/
           
+          # Cloud
+          Copy-Item target/x86_64-pc-windows-msvc/release/lancedb_go.dll release-dist/windows-amd64-cloud/lancedb_go_cloud.dll
+          Copy-Item target/x86_64-pc-windows-msvc/release/lancedb_go.lib release-dist/windows-amd64-cloud/lancedb_go_cloud.lib
+          Copy-Item target/aarch64-pc-windows-msvc/release/lancedb_go.dll release-dist/windows-arm64-cloud/lancedb_go_cloud.dll
+          Copy-Item target/aarch64-pc-windows-msvc/release/lancedb_go.lib release-dist/windows-arm64-cloud/lancedb_go_cloud.lib
+          
+          # Archive standard
           Compress-Archive -Path release-dist/windows-amd64/* -DestinationPath lancedb-go-windows-amd64.zip
           Compress-Archive -Path release-dist/windows-arm64/* -DestinationPath lancedb-go-windows-arm64.zip
+          
+          # Archive cloud
+          Compress-Archive -Path release-dist/windows-amd64-cloud/* -DestinationPath lancedb-go-cloud-windows-amd64.zip
+          Compress-Archive -Path release-dist/windows-arm64-cloud/* -DestinationPath lancedb-go-cloud-windows-arm64.zip
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
@@ -178,6 +265,8 @@ jobs:
           path: |
             lancedb-go-windows-amd64.zip
             lancedb-go-windows-arm64.zip
+            lancedb-go-cloud-windows-amd64.zip
+            lancedb-go-cloud-windows-arm64.zip
 
   build-android:
     name: Build Android
@@ -313,12 +402,21 @@ jobs:
       - name: Structure release files
         run: |
           mkdir -p release-files
+          # Linux
           cp artifacts/linux-artifacts/lancedb-go-linux-amd64.tar.gz release-files/
           cp artifacts/linux-artifacts/lancedb-go-linux-arm64.tar.gz release-files/
+          cp artifacts/linux-artifacts/lancedb-go-cloud-linux-amd64.tar.gz release-files/
+          cp artifacts/linux-artifacts/lancedb-go-cloud-linux-arm64.tar.gz release-files/
           cp artifacts/linux-artifacts/lancedb.h release-files/
+          # macOS
           cp artifacts/mac-artifacts/lancedb-go-darwin-universal.tar.gz release-files/
+          cp artifacts/mac-artifacts/lancedb-go-cloud-darwin-universal.tar.gz release-files/
+          # Windows
           cp artifacts/windows-artifacts/lancedb-go-windows-amd64.zip release-files/
           cp artifacts/windows-artifacts/lancedb-go-windows-arm64.zip release-files/
+          cp artifacts/windows-artifacts/lancedb-go-cloud-windows-amd64.zip release-files/
+          cp artifacts/windows-artifacts/lancedb-go-cloud-windows-arm64.zip release-files/
+          # Mobile
           cp artifacts/android-artifacts/lancedb-go-android.zip release-files/
           cp artifacts/ios-artifacts/lancedb-go-ios-xcframework.zip release-files/
 
@@ -328,10 +426,15 @@ jobs:
           files: |
             release-files/lancedb-go-linux-amd64.tar.gz
             release-files/lancedb-go-linux-arm64.tar.gz
+            release-files/lancedb-go-cloud-linux-amd64.tar.gz
+            release-files/lancedb-go-cloud-linux-arm64.tar.gz
             release-files/lancedb.h
             release-files/lancedb-go-darwin-universal.tar.gz
+            release-files/lancedb-go-cloud-darwin-universal.tar.gz
             release-files/lancedb-go-windows-amd64.zip
             release-files/lancedb-go-windows-arm64.zip
+            release-files/lancedb-go-cloud-windows-amd64.zip
+            release-files/lancedb-go-cloud-windows-arm64.zip
             release-files/lancedb-go-android.zip
             release-files/lancedb-go-ios-xcframework.zip
           draft: true
