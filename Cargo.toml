@@ -1,5 +1,6 @@
 [workspace]
 members = ["rust/lancedb", "nodejs", "python", "cgo"]
+exclude = ["third_party"]
 resolver = "2"
 
 [workspace.package]
