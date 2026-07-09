@@ -52,7 +52,11 @@ fn max_conn_reset_retries() -> u16 {
 /// `EntityTooLarge`, so we clamp `LANCE_INITIAL_UPLOAD_SIZE` one byte
 /// below that threshold to keep the buffer-fills-to-clamp single-PUT
 /// path safe. See lance#6750 for the related txn-file write fix.
+#[cfg(target_pointer_width = "64")]
 const MAX_UPLOAD_PART_SIZE: usize = 1024 * 1024 * 1024 * 5 - 1;
+
+#[cfg(target_pointer_width = "32")]
+const MAX_UPLOAD_PART_SIZE: usize = usize::MAX;
 
 /// Clamps a requested upload part size to the valid [5MB, 5GB] range.
 /// Returns the clamped value and whether clamping was necessary.
