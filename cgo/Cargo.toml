@@ -37,7 +37,7 @@ tokio-stream = "0.1"
 [target.x86_64-apple-darwin.dependencies]
 
 [features]
-default = []
+default = ["cloud"]
 remote = ["lancedb/remote"]
 aws = ["lancedb/aws"]
 gcs = ["lancedb/gcs"]
