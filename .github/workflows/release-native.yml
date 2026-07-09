@@ -54,14 +54,16 @@ jobs:
           
           # Copy binaries
           cp target/release/liblancedb_go.so release-dist/linux-amd64/
+          cp target/release/liblancedb_go.a release-dist/linux-amd64/
           cp target/aarch64-unknown-linux-gnu/release/liblancedb_go.so release-dist/linux-arm64/
+          cp target/aarch64-unknown-linux-gnu/release/liblancedb_go.a release-dist/linux-arm64/
           
           # Find and copy generated header
           find target -name "lancedb.h" -exec cp {} release-dist/include/ \; -quit
           
           # Package into archives
-          tar -czf lancedb-go-linux-amd64.tar.gz -C release-dist/linux-amd64 liblancedb_go.so
-          tar -czf lancedb-go-linux-arm64.tar.gz -C release-dist/linux-arm64 liblancedb_go.so
+          tar -czf lancedb-go-linux-amd64.tar.gz -C release-dist/linux-amd64 liblancedb_go.so liblancedb_go.a
+          tar -czf lancedb-go-linux-arm64.tar.gz -C release-dist/linux-arm64 liblancedb_go.so liblancedb_go.a
           cp release-dist/include/lancedb.h ./lancedb.h
 
       - name: Upload Linux artifacts
