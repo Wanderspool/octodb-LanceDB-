@@ -1,5 +1,5 @@
 [workspace]
-members = ["rust/lancedb", "nodejs", "python"]
+members = ["rust/lancedb", "nodejs", "python", "cgo"]
 resolver = "2"
 
 [workspace.package]
@@ -79,3 +79,10 @@ debug = false
 debug-assertions = false
 strip = "debuginfo"
 incremental = false
+
+[profile.release]
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+panic = "unwind"
+strip = "symbols"
