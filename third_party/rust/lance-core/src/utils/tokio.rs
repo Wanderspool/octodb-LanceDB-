@@ -87,6 +87,7 @@ fn global_cpu_runtime() -> &'static mut Runtime {
 
 /// After a fork() operation, force re-creation of the BackgroundExecutor. Note: this function
 /// runs in "async-signal context" which means that we can't (safely) do much here.
+#[allow(dead_code)]
 extern "C" fn atfork_tokio_child() {
     CPU_RUNTIME.store(std::ptr::null_mut(), Ordering::SeqCst);
     RUNTIME_INSTALLED.store(false, Ordering::SeqCst);
