@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright The Lance Authors
 
+#![allow(non_camel_case_types)]
+
 use std::ops::{Add, AddAssign, Mul, Sub, SubAssign};
 use super::{FloatSimd, SIMD};
 
