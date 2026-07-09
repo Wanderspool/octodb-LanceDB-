@@ -86,3 +86,19 @@ lto = "fat"
 codegen-units = 1
 panic = "unwind"
 strip = "symbols"
+
+[patch."https://github.com/lance-format/lance.git"]
+lance = { path = "third_party/rust/lance" }
+lance-core = { path = "third_party/rust/lance-core" }
+lance-datagen = { path = "third_party/rust/lance-datagen" }
+lance-file = { path = "third_party/rust/lance-file" }
+lance-io = { path = "third_party/rust/lance-io" }
+lance-index = { path = "third_party/rust/lance-index" }
+lance-linalg = { path = "third_party/rust/lance-linalg" }
+lance-namespace = { path = "third_party/rust/lance-namespace" }
+lance-namespace-impls = { path = "third_party/rust/lance-namespace-impls" }
+lance-table = { path = "third_party/rust/lance-table" }
+lance-testing = { path = "third_party/rust/lance-testing" }
+lance-datafusion = { path = "third_party/rust/lance-datafusion" }
+lance-encoding = { path = "third_party/rust/lance-encoding" }
+lance-arrow = { path = "third_party/rust/lance-arrow" }
