@@ -201,7 +201,7 @@ jobs:
 
       - name: Setup Android NDK
         run: |
-          echo "ANDROID_NDK_HOME=${{ env.ANDROID_NDK_LATEST_HOME }}" >> $GITHUB_ENV
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> $GITHUB_ENV
 
       - name: Install cargo-ndk
         run: |
