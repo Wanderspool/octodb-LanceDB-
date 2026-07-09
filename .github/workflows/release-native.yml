@@ -1,0 +1,338 @@
+name: Release Native Libraries
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          lfs: true
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: aarch64-unknown-linux-gnu
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install cross-compilers and dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libssl-dev
+
+      - name: Build Linux x86_64 (AVX2 enabled via config)
+        run: |
+          cargo build --manifest-path cgo/Cargo.toml --release
+
+      - name: Build Linux ARM64
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+          CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
+          CXX_aarch64_unknown_linux_gnu: aarch64-linux-gnu-g++
+          PKG_CONFIG_ALLOW_CROSS: "1"
+        run: |
+          cargo build --manifest-path cgo/Cargo.toml --target aarch64-unknown-linux-gnu --release
+
+      - name: Package Linux assets
+        run: |
+          mkdir -p release-dist/linux-amd64 release-dist/linux-arm64 release-dist/include
+          
+          # Copy binaries
+          cp target/release/liblancedb_go.so release-dist/linux-amd64/
+          cp target/aarch64-unknown-linux-gnu/release/liblancedb_go.so release-dist/linux-arm64/
+          
+          # Find and copy generated header
+          find target -name "lancedb.h" -exec cp {} release-dist/include/ \; -quit
+          
+          # Package into archives
+          tar -czf lancedb-go-linux-amd64.tar.gz -C release-dist/linux-amd64 liblancedb_go.so
+          tar -czf lancedb-go-linux-arm64.tar.gz -C release-dist/linux-arm64 liblancedb_go.so
+          cp release-dist/include/lancedb.h ./lancedb.h
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts
+          path: |
+            lancedb-go-linux-amd64.tar.gz
+            lancedb-go-linux-arm64.tar.gz
+            lancedb.h
+
+  build-mac:
+    name: Build macOS
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          lfs: true
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-apple-darwin aarch64-apple-darwin
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build macOS x86_64
+        run: |
+          cargo build --manifest-path cgo/Cargo.toml --target x86_64-apple-darwin --release
+
+      - name: Build macOS ARM64
+        run: |
+          cargo build --manifest-path cgo/Cargo.toml --target aarch64-apple-darwin --release
+
+      - name: Create Universal macOS binaries
+        run: |
+          mkdir -p release-dist/mac-universal
+          
+          # Universal Dynamic Library (.dylib)
+          lipo -create \
+            -output release-dist/mac-universal/liblancedb_go.dylib \
+            target/x86_64-apple-darwin/release/liblancedb_go.dylib \
+            target/aarch64-apple-darwin/release/liblancedb_go.dylib
+            
+          # Universal Static Library (.a)
+          lipo -create \
+            -output release-dist/mac-universal/liblancedb_go.a \
+            target/x86_64-apple-darwin/release/liblancedb_go.a \
+            target/aarch64-apple-darwin/release/liblancedb_go.a
+
+          # Package universal binaries
+          tar -czf lancedb-go-darwin-universal.tar.gz -C release-dist/mac-universal liblancedb_go.dylib liblancedb_go.a
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-artifacts
+          path: lancedb-go-darwin-universal.tar.gz
+
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          lfs: true
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-pc-windows-msvc aarch64-pc-windows-msvc
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Windows x86_64
+        run: |
+          cargo build --manifest-path cgo/Cargo.toml --target x86_64-pc-windows-msvc --release
+
+      - name: Build Windows ARM64
+        run: |
+          cargo build --manifest-path cgo/Cargo.toml --target aarch64-pc-windows-msvc --release
+
+      - name: Package Windows assets
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release-dist/windows-amd64
+          New-Item -ItemType Directory -Force -Path release-dist/windows-arm64
+          
+          Copy-Item target/x86_64-pc-windows-msvc/release/lancedb_go.dll release-dist/windows-amd64/
+          Copy-Item target/x86_64-pc-windows-msvc/release/lancedb_go.lib release-dist/windows-amd64/
+          
+          Copy-Item target/aarch64-pc-windows-msvc/release/lancedb_go.dll release-dist/windows-arm64/
+          Copy-Item target/aarch64-pc-windows-msvc/release/lancedb_go.lib release-dist/windows-arm64/
+          
+          Compress-Archive -Path release-dist/windows-amd64/* -DestinationPath lancedb-go-windows-amd64.zip
+          Compress-Archive -Path release-dist/windows-arm64/* -DestinationPath lancedb-go-windows-arm64.zip
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: |
+            lancedb-go-windows-amd64.zip
+            lancedb-go-windows-arm64.zip
+
+  build-android:
+    name: Build Android
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          lfs: true
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Android NDK
+        run: |
+          echo "ANDROID_NDK_HOME=${{ env.ANDROID_NDK_LATEST_HOME }}" >> $GITHUB_ENV
+
+      - name: Install cargo-ndk
+        run: |
+          cargo install cargo-ndk --locked
+
+      - name: Build Android ARM64 (arm64-v8a)
+        run: |
+          cargo ndk --target aarch64-linux-android --platform 21 -- build --manifest-path cgo/Cargo.toml --release
+
+      - name: Build Android ARMv7 (armeabi-v7a) with NEON
+        env:
+          RUSTFLAGS: "-C target-feature=+neon"
+        run: |
+          cargo ndk --target armv7-linux-androideabi --platform 21 -- build --manifest-path cgo/Cargo.toml --release
+
+      - name: Build Android x86_64
+        run: |
+          cargo ndk --target x86_64-linux-android --platform 21 -- build --manifest-path cgo/Cargo.toml --release
+
+      - name: Package Android assets
+        run: |
+          mkdir -p release-dist/android/jniLibs/arm64-v8a
+          mkdir -p release-dist/android/jniLibs/armeabi-v7a
+          mkdir -p release-dist/android/jniLibs/x86_64
+          
+          cp target/aarch64-linux-android/release/liblancedb_go.so release-dist/android/jniLibs/arm64-v8a/
+          cp target/armv7-linux-androideabi/release/liblancedb_go.so release-dist/android/jniLibs/armeabi-v7a/
+          cp target/x86_64-linux-android/release/liblancedb_go.so release-dist/android/jniLibs/x86_64/
+          
+          zip -r lancedb-go-android.zip -j release-dist/android/jniLibs/arm64-v8a/liblancedb_go.so release-dist/android/jniLibs/armeabi-v7a/liblancedb_go.so release-dist/android/jniLibs/x86_64/liblancedb_go.so
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-artifacts
+          path: lancedb-go-android.zip
+
+  build-ios:
+    name: Build iOS
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          lfs: true
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build iOS device ARM64
+        run: |
+          cargo build --manifest-path cgo/Cargo.toml --target aarch64-apple-ios --release
+
+      - name: Build iOS Simulator ARM64
+        run: |
+          cargo build --manifest-path cgo/Cargo.toml --target aarch64-apple-ios-sim --release
+
+      - name: Build iOS Simulator x86_64
+        run: |
+          cargo build --manifest-path cgo/Cargo.toml --target x86_64-apple-ios --release
+
+      - name: Package iOS XCFramework
+        run: |
+          # Combine simulator libraries
+          mkdir -p target/ios-simulator/release
+          lipo -create \
+            -output target/ios-simulator/release/liblancedb_go.a \
+            target/aarch64-apple-ios-sim/release/liblancedb_go.a \
+            target/x86_64-apple-ios/release/liblancedb_go.a
+            
+          # Extract the generated header file
+          mkdir -p target/headers
+          find target -name "lancedb.h" -exec cp {} target/headers/ \; -quit
+
+          # Create XCFramework
+          xcodebuild -create-xcframework \
+            -library target/aarch64-apple-ios/release/liblancedb_go.a -headers target/headers \
+            -library target/ios-simulator/release/liblancedb_go.a -headers target/headers \
+            -output target/release/lancedb_go.xcframework
+
+          # Zip XCFramework
+          cd target/release
+          zip -r ../../lancedb-go-ios-xcframework.zip lancedb_go.xcframework
+
+      - name: Upload iOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-artifacts
+          path: lancedb-go-ios-xcframework.zip
+
+  publish-release:
+    name: Publish Release
+    runs-on: ubuntu-latest
+    needs: [build-linux, build-mac, build-windows, build-android, build-ios]
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Structure release files
+        run: |
+          mkdir -p release-files
+          cp artifacts/linux-artifacts/lancedb-go-linux-amd64.tar.gz release-files/
+          cp artifacts/linux-artifacts/lancedb-go-linux-arm64.tar.gz release-files/
+          cp artifacts/linux-artifacts/lancedb.h release-files/
+          cp artifacts/mac-artifacts/lancedb-go-darwin-universal.tar.gz release-files/
+          cp artifacts/windows-artifacts/lancedb-go-windows-amd64.zip release-files/
+          cp artifacts/windows-artifacts/lancedb-go-windows-arm64.zip release-files/
+          cp artifacts/android-artifacts/lancedb-go-android.zip release-files/
+          cp artifacts/ios-artifacts/lancedb-go-ios-xcframework.zip release-files/
+
+      - name: Create draft GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-files/lancedb-go-linux-amd64.tar.gz
+            release-files/lancedb-go-linux-arm64.tar.gz
+            release-files/lancedb.h
+            release-files/lancedb-go-darwin-universal.tar.gz
+            release-files/lancedb-go-windows-amd64.zip
+            release-files/lancedb-go-windows-arm64.zip
+            release-files/lancedb-go-android.zip
+            release-files/lancedb-go-ios-xcframework.zip
+          draft: true
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
