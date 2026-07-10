@@ -150,7 +150,11 @@ pub(crate) const TRANSACTIONS_DIR: &str = "_transactions";
 
 // We default to 6GB for the index cache, since indices are often large but
 // worth caching.
+#[cfg(target_pointer_width = "64")]
 pub const DEFAULT_INDEX_CACHE_SIZE: usize = 6 * 1024 * 1024 * 1024;
+
+#[cfg(target_pointer_width = "32")]
+pub const DEFAULT_INDEX_CACHE_SIZE: usize = 2 * 1024 * 1024 * 1024;
 // Default to 1 GiB for the metadata cache. Column metadata can be like 40MB,
 // so this should be enough for a few hundred columns. Other metadata is much
 // smaller.

@@ -412,6 +412,12 @@ pub struct WriteParams {
     pub blob_pack_file_size_threshold: Option<usize>,
 }
 
+#[cfg(target_pointer_width = "64")]
+const DEFAULT_MAX_BYTES_PER_FILE: usize = 90 * 1024 * 1024 * 1024;
+
+#[cfg(target_pointer_width = "32")]
+const DEFAULT_MAX_BYTES_PER_FILE: usize = usize::MAX;
+
 impl Default for WriteParams {
     fn default() -> Self {
         Self {
@@ -419,7 +425,7 @@ impl Default for WriteParams {
             max_rows_per_group: 1024,
             // object-store has a 100GB limit, so we should at least make sure
             // we are under that.
-            max_bytes_per_file: 90 * 1024 * 1024 * 1024, // 90 GB
+            max_bytes_per_file: DEFAULT_MAX_BYTES_PER_FILE,
             mode: WriteMode::Create,
             store_params: None,
             base_store_params: None,
