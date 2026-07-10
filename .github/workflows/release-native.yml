@@ -231,7 +231,8 @@ jobs:
           cp target/armv7-linux-androideabi/release/liblancedb_go.so release-dist/android/jniLibs/armeabi-v7a/
           cp target/x86_64-linux-android/release/liblancedb_go.so release-dist/android/jniLibs/x86_64/
           
-          zip -r lancedb-go-android.zip -j release-dist/android/jniLibs/arm64-v8a/liblancedb_go.so release-dist/android/jniLibs/armeabi-v7a/liblancedb_go.so release-dist/android/jniLibs/x86_64/liblancedb_go.so
+          cd release-dist/android
+          zip -r ../../lancedb-go-android.zip jniLibs
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
